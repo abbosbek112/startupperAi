@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getParentStartup(startupId) {
+      return get(/databases/$(database)/documents/startups/$(startupId)).data;
+    }
+
+    function isStartupOwner(startupId) {
+      return isSignedIn() && getParentStartup(startupId).ownerId == request.auth.uid;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.uid == request.auth.uid 
+        && data.email is string && data.email.size() <= 256
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStartup(data) {
+      return data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 256
+        && data.idea is string && data.idea.size() <= 2000
+        && data.stage in ['idea', 'mvp', 'growth', 'scaling']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoadmapStep(data) {
+      return data.title is string && data.title.size() <= 256
+        && data.description is string && data.description.size() <= 5000
+        && data.status in ['pending', 'in-progress', 'completed']
+        && (data.tasks == null || (data.tasks is list && data.tasks.size() <= 50));
+    }
+
+    function isValidChatMessage(data) {
+      return data.role in ['user', 'model']
+        && data.content is string && data.content.size() <= 5000
+        && data.timestamp is timestamp;
+    }
+
+    function isValidPitch(data) {
+      return data.content is map
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collections ---
+
+    // 1. Users
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && isValidUser(incoming()) 
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+        && incoming().updatedAt == request.time;
+    }
+
+    // 2. Startups
+    match /startups/{startupId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      
+      allow create: if isVerified() && isValidId(startupId) && isValidStartup(incoming()) 
+        && incoming().createdAt == request.time;
+        
+      allow update: if isOwner(existing().ownerId) && isValidId(startupId) && isValidStartup(incoming())
+        && incoming().diff(existing()).affectedKeys().hasAny(['name', 'idea', 'stage', 'healthScore', 'metrics', 'status', 'updatedAt'])
+        && incoming().updatedAt == request.time
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt;
+        
+      allow delete: if isOwner(existing().ownerId);
+
+      // Sub-collections: Roadmap Steps
+      match /roadmaps/{roadmapId} {
+        allow get: if isStartupOwner(startupId);
+        allow list: if isStartupOwner(startupId);
+        allow create: if isStartupOwner(startupId) && isValidId(roadmapId) && isValidRoadmapStep(incoming());
+        allow update: if isStartupOwner(startupId) && isValidId(roadmapId) && isValidRoadmapStep(incoming());
+        allow delete: if isStartupOwner(startupId);
+      }
+
+      // Sub-collections: Chats
+      match /chats/{chatId} {
+        allow get: if isStartupOwner(startupId);
+        allow list: if isStartupOwner(startupId);
+        allow create: if isStartupOwner(startupId) && isValidId(chatId) && isValidChatMessage(incoming());
+        allow delete: if isStartupOwner(startupId);
+      }
+
+      // Sub-collections: Pitches
+      match /pitches/{pitchId} {
+        allow get: if isStartupOwner(startupId);
+        allow list: if isStartupOwner(startupId);
+        allow create: if isStartupOwner(startupId) && isValidId(pitchId) && isValidPitch(incoming());
+        allow update: if isStartupOwner(startupId) && isValidId(pitchId) && isValidPitch(incoming());
+        allow delete: if isStartupOwner(startupId);
+      }
+    }
+  }
+}

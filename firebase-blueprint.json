@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about the founder",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Startup": {
+      "title": "Startup Project",
+      "description": "Main startup idea and health metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "idea": { "type": "string" },
+        "stage": { "type": "string", "enum": ["idea", "mvp", "growth", "scaling"] },
+        "healthScore": { "type": "number" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "ideaStrength": { "type": "number" },
+            "execution": { "type": "number" },
+            "marketFit": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["healthy", "risky", "critical"] },
+        "reasoning": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "idea", "stage"]
+    },
+    "RoadmapStep": {
+      "title": "Roadmap Step",
+      "description": "A phase in the startup journey",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed"] },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "status": { "type": "string", "enum": ["todo", "done"] },
+              "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+            }
+          }
+        }
+      }
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message in the AI Co-Founder chat",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Pitch": {
+      "title": "Pitch Deck",
+      "description": "Generated pitch content",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "object",
+          "properties": {
+            "problem": { "type": "string" },
+            "solution": { "type": "string" },
+            "market": { "type": "string" },
+            "businessModel": { "type": "string" },
+            "competition": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/startups/{startupId}": {
+      "schema": "Startup",
+      "description": "Main startup documents"
+    },
+    "/startups/{startupId}/roadmaps/{roadmapId}": {
+      "schema": "RoadmapStep",
+      "description": "Steps for the roadmap"
+    },
+    "/startups/{startupId}/chats/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "Co-founder chat messages"
+    },
+    "/startups/{startupId}/pitches/{pitchId}": {
+      "schema": "Pitch",
+      "description": "Pitch deck versions"
+    }
+  }
+}
